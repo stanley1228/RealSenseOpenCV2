@@ -71,6 +71,78 @@ void TestGetIntrinsic()
 
 struct  rs2_intrinsics mRsDepthIntrinsic;
 
+Mat DH_HomoTran(double d,double theta,double a,double alpha)
+{
+	Mat Metrix_r = (Mat_<double>(4, 4) <<	cos(theta), -sin(theta)*cos(alpha),  sin(theta)*sin(alpha),  a*cos(theta),
+											sin(theta),  cos(theta)*cos(alpha), -cos(theta)*sin(alpha),  a*sin(theta),
+											0         ,  sin(alpha)           ,   cos(alpha)          ,  d,
+											0         , 0                     , 0                     ,  1);
+
+	return Metrix_r;
+
+}
+#define DEF_PI (3.1415926F)
+void calculate_obj(double *Image_coor,double *Robot_coor)
+{
+	double thetaH = -1.0/10.0 * DEF_PI;
+	//double LH1 = 140.0*0.001;//m
+	//double LH2 = 20.0*0.001;//m
+	//double LH3 = 10.0*0.001;//m
+
+	double LH1 = 100.0*0.001;//m
+	double LH2 = 0.0*0.001;//m
+	double LH3 = 0.0*0.001;//m
+
+
+	Mat mImage_coor = (Mat_<double>(4, 1) << Image_coor[0],
+		Image_coor[1],
+		Image_coor[2],
+		1);
+
+	
+	const int PNUM = 5;
+	double ALPHA[PNUM] = {0,0,0.5*DEF_PI,-0.5*DEF_PI,-0.5*DEF_PI };   //DH中的alpha  沿著x轉的角度
+	double THETHA_HOME[PNUM] = {0,0,0,0,-0.5*DEF_PI }; //DH中的theta  沿著Z轉的角度
+	double d_Axis_j[PNUM] = {LH1,0,0,0,0 }; //軸向距d
+	double a_Radia_j[PNUM] = {0,LH2,0,LH3,0}; //徑向距a
+	double JointTheta_j[PNUM] = { 0,0,thetaH,0,0 };
+	double Theta_j[PNUM] = {0};
+
+	Theta_j[0] = THETHA_HOME[0];
+	Theta_j[1] = THETHA_HOME[1] + JointTheta_j[0]; //座標90度旋轉 + 各軸旋轉角度
+	Theta_j[2] = THETHA_HOME[2] + JointTheta_j[1];
+	Theta_j[3] = THETHA_HOME[3] + JointTheta_j[2];
+	Theta_j[4] = THETHA_HOME[4] + JointTheta_j[3];
+
+
+	Mat T0_1 = DH_HomoTran(d_Axis_j[0], Theta_j[0], a_Radia_j[0], ALPHA[0]);
+	Mat T1_2 = DH_HomoTran(d_Axis_j[1], Theta_j[1], a_Radia_j[1], ALPHA[1]);
+	Mat T2_3 = DH_HomoTran(d_Axis_j[2], Theta_j[2], a_Radia_j[2], ALPHA[2]);
+	Mat T3_4 = DH_HomoTran(d_Axis_j[3], Theta_j[3], a_Radia_j[3], ALPHA[3]);
+	Mat T4_5 = DH_HomoTran(d_Axis_j[4], Theta_j[4], a_Radia_j[4], ALPHA[4]);
+
+	Mat T0_2 = T0_1*T1_2;
+	Mat T0_3 = T0_2*T2_3;
+	Mat T0_4 = T0_3*T3_4;
+	Mat T0_5 = T0_4*T4_5;
+
+	Mat mRobot_coor = T0_5*mImage_coor;
+	double* pmRobot_coor = mRobot_coor.ptr<double>(0);
+	Robot_coor[0] = pmRobot_coor[0];
+	Robot_coor[1] = pmRobot_coor[1];
+	Robot_coor[2] = pmRobot_coor[2];
+}
+
+void TestHomotran()
+{
+	double Image_coor[3] = { 0 };
+	double Robot_coor[3] = { 0 };
+
+	calculate_obj(Image_coor, Robot_coor);
+
+
+}
+
 static void onMouseDeproject(int event, int x, int y, int f, void*)
 {
 	Mat image = color_mat.clone();
@@ -79,28 +151,30 @@ static void onMouseDeproject(int event, int x, int y, int f, void*)
 	struct  rs2_intrinsics intrin = mRsDepthIntrinsic;
 	intrin.fx = 600;
 	intrin.fy = 600;
-	double from_point[3];
+	double Camera_coor[3] = { 0 };;
 	double pixel[2] = { x,y };
-	rs2_deproject_pixel_to_point(from_point, &intrin, pixel, depth);
+	rs2_deproject_pixel_to_point(Camera_coor, &intrin, pixel, depth);
 
-	from_point[0] = from_point[0] + 20.0/1000;
-	from_point[1] = from_point[1] + 155/1000;
-	from_point[2] = from_point[2] - 100 / 1000;
+	double Robot_coor[3] = {0};
+	calculate_obj(Camera_coor, Robot_coor);
+
+	//from_point[0] = from_point[0] + 20.0/1000;
+	//from_point[1] = from_point[1] + 140.0/1000;
 	
-	rs2_extrinsics extrin;
-	double theta_y = 0.3333*3.1415;
-	extrin.rotation[0] = 0;
-	extrin.rotation[1] = -1;
-	extrin.rotation[2] = 0;
-	extrin.rotation[3] = -sin(theta_y);
-	extrin.rotation[4] = 0;
-	extrin.rotation[5] = -cos(theta_y);
-	extrin.rotation[6] = cos(theta_y);
-	extrin.rotation[7] = 0;
-	extrin.rotation[8] = -sin(theta_y);
-	extrin.translation[0] = 0 / 1000;
-	extrin.translation[1] = 0.0 / 1000;
-	extrin.translation[2] = 0;
+	//rs2_extrinsics extrin;
+	//double theta_y = 0*3.1415;
+	//extrin.rotation[0] = 0;
+	//extrin.rotation[1] = -1;
+	//extrin.rotation[2] = 0;
+	//extrin.rotation[3] = -sin(theta_y);
+	//extrin.rotation[4] = 0;
+	//extrin.rotation[5] = -cos(theta_y);
+	//extrin.rotation[6] = cos(theta_y);
+	//extrin.rotation[7] = 0;
+	//extrin.rotation[8] = -sin(theta_y);
+	//extrin.translation[0] = 0 / 1000;
+	//extrin.translation[1] = 0.0 / 1000;
+	//extrin.translation[2] = 0;
 
 	//unity
 	//extrin.rotation[0] = 1;
@@ -113,12 +187,17 @@ static void onMouseDeproject(int event, int x, int y, int f, void*)
 	//extrin.rotation[7] = 0;
 	//extrin.rotation[8] = 1;
 
-	double to_point[3];
-	rs2_transform_point_to_point(to_point, &extrin, from_point);
+	
 
 	char name[50];
-	sprintf_s(name, "point=[%2.2f,%2.2f,%2.2f] mm", to_point[0]*1000, to_point[1]*1000, to_point[2]*1000);
-	putText(image, name, Point(150, 40), FONT_HERSHEY_SIMPLEX, .7, Scalar(0, 255, 0), 2, 8, false);
+	sprintf_s(name, "Image coor point=[%d,%d]",x, y);
+	putText(image, name, Point(100, 40), FONT_HERSHEY_SIMPLEX, .7, Scalar(0, 255, 0), 2, 8, false);
+
+	sprintf_s(name, "Camera coor point=[%2.2f,%2.2f,%2.2f] mm", Camera_coor[0]*1000, Camera_coor[1]*1000, Camera_coor[2]*1000);
+	putText(image, name, Point(100, 60), FONT_HERSHEY_SIMPLEX, .7, Scalar(0, 255, 0), 2, 8, false);
+
+	sprintf_s(name, "Robot coor point=[%2.2f,%2.2f,%2.2f] mm", Robot_coor[0] * 1000, Robot_coor[1] * 1000, Robot_coor[2] * 1000);
+	putText(image, name, Point(100, 80), FONT_HERSHEY_SIMPLEX, .7, Scalar(0, 255, 0), 2, 8, false);
 
 	//此張影像中心的紅色十字架
 	//circle(dst,image_cen,3,Scalar(0,0,200),3);
@@ -215,6 +294,7 @@ void TestDeproject()
 
 int main(int argc, char * argv[]) try
 {	
+	//TestHomotran();
 	TestDeproject();
 	//TestGetIntrinsic();
 	return 0;
