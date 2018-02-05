@@ -84,14 +84,15 @@ Mat DH_HomoTran(double d,double theta,double a,double alpha)
 #define DEF_PI (3.1415926F)
 void calculate_obj(double *Image_coor,double *Robot_coor)
 {
-	double thetaH = -1.0/10.0 * DEF_PI;
+	
 	//double LH1 = 140.0*0.001;//m
 	//double LH2 = 20.0*0.001;//m
 	//double LH3 = 10.0*0.001;//m
 
-	double LH1 = 100.0*0.001;//m
-	double LH2 = 0.0*0.001;//m
-	double LH3 = 0.0*0.001;//m
+	double thetaH = -50.0 / 180 * DEF_PI; //for sewing
+	double LH1 = 150.0*0.001;//m
+	double LH2 = 40.0*0.001;//m
+	double LH3 = 15.0*0.001;//m
 
 
 	Mat mImage_coor = (Mat_<double>(4, 1) << Image_coor[0],
